@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrainingEDM 3.0</title>
+    <script src="https://telegram.org"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            margin: 0; padding: 15px; text-align: center;
+        }
+        h1 { color: #bb86fc; margin-bottom: 5px; font-size: 24px; }
+        .subtitle { color: #888; font-size: 14px; margin-bottom: 20px; }
+        .menu-btn {
+            display: block; width: 100%; padding: 16px; margin: 12px 0;
+            background-color: #1e1e1e; border: 1px solid #333;
+            color: white; font-size: 16px; font-weight: bold;
+            border-radius: 14px; cursor: pointer; transition: 0.2s;
+            text-align: left; box-sizing: border-box;
+        }
+        .menu-btn:active { background-color: #2a2a2a; transform: scale(0.98); }
+        .heavy { border-left: 6px solid #ff4b4b; }
+        .light { border-left: 6px solid #4caf50; }
+        .medium { border-left: 6px solid #ff9800; }
+        .screen { display: none; text-align: left; background: #1e1e1e; padding: 18px; border-radius: 16px; border: 1px solid #333; box-sizing: border-box; }
+        .active { display: block; }
+        .exercise { margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #2d2d2d; }
+        .ex-name { font-weight: bold; color: #fff; font-size: 16px; }
+        .ex-weight { color: #bb86fc; font-weight: bold; font-size: 15px; margin-top: 3px; }
+        .ex-note { font-size: 13px; color: #aaa; margin-top: 4px; font-style: italic; }
+        .back-btn { background: #333; color: white; padding: 10px 16px; border: none; border-radius: 8px; cursor: pointer; margin-bottom: 15px; font-weight: bold; }
+        .action-btn {
+            display: block; width: 100%; padding: 14px; margin-top: 20px;
+            background-color: #bb86fc; color: #000; font-size: 16px; font-weight: bold;
+            border-radius: 12px; border: none; cursor: pointer; text-align: center;
+        }
+        .action-btn:active { background-color: #a370db; }
+    </style>
+</head>
+<body>
+
+    <div id="main-screen" class="screen active">
+        <h1>TrainingEDM 3.0</h1>
+        <div class="subtitle">Умный HLM-цикл автотренера</div>
+        
+        <button class="menu-btn heavy" onclick="showScreen('heavy-screen')">🏋️ ПОНЕДЕЛЬНИК (Тяжёлый)</button>
+        <button class="menu-btn light" onclick="showScreen('light-screen')">🧘 СРЕДА (Лёгкий / Статика)</button>
+        <button class="menu-btn medium" onclick="showScreen('medium-screen')">🔥 ПЯТНИЦА (Средний / Лесенка)</button>
+        <button class="menu-btn" onclick="showMaxes()">📈 Мои Максимумы</button>
+    </div>
+
+    <div id="heavy-screen" class="screen">
+        <button class="back-btn" onclick="showScreen('main-screen')">⬅️ Меню</button>
+        <h2>🏋️ Тяжёлый день (Сила)</h2>
+        <p class="subtitle">Без лесенки. Отдых: 2-3 мин. Повторения: 8-10</p>
+        <div id="heavy-list"></div>
+        <button class="action-btn" onclick="progress('heavy')">💪 Закрыл все подходы на 10 раз!</button>
+    </div>
+
+    <div id="light-screen" class="screen">
+        <button class="back-btn" onclick="showScreen('main-screen')">⬅️ Меню</button>
+        <h2>🧘 Лёгкий день (Техника)</h2>
+        <p class="subtitle">Строго 12 раз. Пауза в пике 2 сек! Отдых: 1.5 мин.</p>
+        <div id="light-list"></div>
+        <button class="action-btn" style="background:#4caf50; color:white;" onclick="showScreen('main-screen')">✅ Тренировка окончена</button>
+    </div>
+
+    <div id="medium-screen" class="screen">
+        <button class="back-btn" onclick="showScreen('main-screen')">⬅️ Меню</button>
+        <h2>🔥 Средний день (Пампинг)</h2>
+        <p class="subtitle">Режим ЛЕСЕНКИ на 12 раз. Отдых: 60-90 сек.</p>
+        <div id="medium-list"></div>
+        <button class="action-btn" onclick="progress('friday')">🚀 Вся лесенка закрыта на 12 раз!</button>
+    </div>
+
+    <script>
+        let tg = window.Telegram.WebApp;
+        if (tg) { tg.expand(); }
+
+        let defaultData = {
+            bench_press: 18.0, t_bar: 20.0, lateral_raises: 7.0,
+            biceps: 15.0, triceps: 30.0, leg_press: 40.0,
+            leg_extensions: 30.0, leg_curls: 25.0
+        };
+
+        if(!localStorage.getItem('user_data')) {
+            localStorage.setItem('user_data', JSON.stringify(defaultData));
+        }
+
+        function getData() { return JSON.parse(localStorage.getItem('user_data')); }
+        function saveData(data) { localStorage.setItem('user_data', JSON.stringify(data)); }
+
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+            if(screenId !== 'main-screen') renderExercises(screenId);
+        }
+
+        function renderExercises(screenId) {
+            let data = getData();
+            let list = "";
+            
+            if(screenId === 'heavy-screen') {
+                list += '<div class="exercise"><div class="ex-name">1. Жим гантелей лёжа</div><div class="ex-weight">3х8-10 по ' + data.bench_press + ' кг</div><div class="ex-note">Суставы вверху до конца не выпрямляй.</div></div>';
+                list += '<div class="exercise"><div class="ex-name">2. Т-гриф (Тяга)</div><div class="ex-weight">3х8-10 по ' + data.t_bar + ' кг</div><div class="ex-note">Спину держи строго прямой.</div></div>';
+                list += '<div class="exercise"><div class="ex-name">3. Махи гантелями в стороны</div><div class="ex-weight">3х10 по ' + data.lateral_raises + ' кг</div><div class="ex-note">Чистая работа средними дельтами.</div></div>';
+                list += '<div class="exercise"><div class="ex-name">4. Бицепс (локти в упоре сидя)</div><div class="ex-weight">3х10 по ' + data.biceps + ' кг</div><div class="ex-note">Без раскачки корпуса.</div></div>';
+                list += '<div class="exercise"><div class="ex-name">5. Трицепс (гантель за голову)</div><div class="ex-weight">3х10 по 12-14 кг</div><div class="ex-note">Локти в стороны не разводи.</div></div>';
+                list += '<div class="exercise"><div class="ex-name">6. Жим ногами (база)</div><div class="ex-weight">3х10 по ' + data.leg_press + ' кг</div><div class="ex-note">Колени ближе друг к другу, глубоко.</div></div>';
+                list += '<div class="exercise"><div class="ex-name">7. Гиперэкстензия</div><div class="ex-weight">2х20 повторений</div><div class="ex-note">Без веса, разгрузка поясницы после Т-грифа.</div></div>';
+                list += '<div class="exercise"><div class="ex-name">8. Пресс на шаре</div><div class="ex-weight">2-3х20-30 раз</div></div>';
+                document.getElementById('heavy-list').innerHTML = list;
+            } 
+            else if(screenId === 'light-screen') {
+                list += '<div class="exercise"><div class="ex-name">1. Хаммер (грудь)</div><div class="ex-weight">3х12 по ' + Math.round(data.bench_press*0.7) + ' кг</div><div class="ex-note">Работа внутри амплитуры, локти не вставлять.</div></div>';
+                list += '<div class="exercise"><div class="ex-name">2. Горизонтальный блок</div><div class="ex-weight">3х12 по ' + Math.round(data.t_bar*0.8) + ' кг</div><div class="ex-note">Пауза 2 секунды при сводке лопаток!</div></div>';
+                list += '<div class="exercise"><div class="ex-name">3. Махи на заднюю дельту</div><div class="ex-weight">3х12 по 5 кг</div><div class="ex-note">Идеальный контроль траектории.</div></div>';
+                list += '<div class="exercise"><div class="ex-name">4. Бицепс (машина трос)</div><div class="ex-weight">3х12 по 10 кг</div><div class="ex-note">Плавно, без рывков.</div></div>';
+                list += '<div class="exercise"><div class="ex-name">5. Трицепс (кроссовер)</div><div class="ex-weight">3х12 по ' + Math.round(data.triceps*0.7) + ' кг</div><div class="ex-note">Зажать внизу на 2 секунды.</div></div>';
+                list += '<div class="exercise"><div class="ex-name">6. Выпрямление ног</div><div class="ex-weight">3х12 по 20 кг</div><div class="ex-note">Фиксация и зажим квадрицепса вверху.</div></div>';
+                list += '<div class="exercise"><div class="ex-name">7. Сгибание ног</div><div class="ex-weight">3х12 по 15 кг</div><div class="ex-note">Прожать бицепс бедра внизу.</div></div>';
+                list += '<div class="exercise"><div class="ex-name">8. Пресс в кроссовере</div><div class="ex-weight">2-3х20 повторений</div></div>';
+                document.getElementById('light-list').innerHTML = list;
+            } 
+            else if(screenId === 'medium-screen') {
+                list += '<div class="exercise"><div class="ex-name">1. Жим гантелей лёжа</div><div class="ex-weight">Лесенка: ' + (data.bench_press-4) + ' / ' + (data.bench_press-2) + ' / ' + data.bench_press + ' кг на 12 раз</div></div>';
+                list += '<div class="exercise"><div class="ex-name">2. Вертикальный блок (Тяга)</div><div class="ex-weight">Лесенка: ' + (data.t_bar+5) + ' / ' + (data.t_bar+10) + ' / ' + (data.t_bar+15) + ' кг на 12 раз</div><div class="ex-note">Тянуть локтями.</div></div>';
+                list += '<div class="exercise"><div class="ex-name">3. Плечи в тренажёре</div><div class="ex-weight">Лесенка: 10 / 12.5 / 15 кг на 12 раз</div></div>';
+                list += '<div class="exercise"><div class="ex-name">4. Бицепс (машина трос)</div><div class="ex-weight">3х12 (12-15 кг) до жжения</div></div>';
+                list += '<div class="exercise"><div class="ex-name">5. Трицепс (крос
+совер)</div><div class="ex-weight">Лесенка: ' + (data.triceps-10) + ' / ' + (data.triceps-5) + ' / ' + data.triceps + ' кг на 12 раз</div></div>';
+list += '6. Выпрямление ногЛесенка: ' + (data.leg_extensions-10) + ' / ' + (data.leg_extensions-5) + ' / ' + data.leg_extensions + ' кг на 12 раз';
+list += '7. Сгибание ногЛесенка: ' + (data.leg_curls-10) + ' / ' + (data.leg_curls-5) + ' / ' + data.leg_curls + ' кг на 12 раз';
+list += '8. Пресс (поднятие ног на весу)2-3х15 раз';
+document.getElementById('medium-list').innerHTML = list;
+}
+}
+function showMaxes() {
+let data = getData();
+alert("📈 Твои текущие максимумы:\n• Жим гантелей: " + data.bench_press + " кг\n• Т-гриф: " + data.t_bar + " кг\n• Жим ногами: " + data.leg_press + " кг\n• Трицепс: " + data.triceps + " кг");
+}
+function progress(type) {
+let data = getData();
+if(type === 'heavy') {
+data.bench_press += 2.0; data.t_bar += 2.5; data.leg_press += 5.0;
+alert("💪 Алгоритм TrainingEDM увеличил силовые веса на следующую неделю!");
+} else if(type === 'friday') {
+data.triceps += 2.5; data.leg_extensions += 5.0;
+alert("🔥 Лесенка пройдена! Пампинг-веса автоматически пересчитаны вверх.");
+}
+saveData(data);
+showScreen('main-screen');
+}
+
